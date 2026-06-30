@@ -1,0 +1,7 @@
+{
+  "limit": 30,
+  "interval_hours": 24,
+  "purge": false,
+  "requestedAt": "2026-06-30T19:30:00Z",
+  "note": "Backfill ~30 evergreen space/astronomy posts for astrokobi.online"
+}
