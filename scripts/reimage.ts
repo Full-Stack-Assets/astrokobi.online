@@ -44,11 +44,15 @@ function replaceHero(
     `  alt: ${q(hero.alt)}\n` +
     `  credit: ${q(hero.credit)}\n` +
     `  creditUrl: ${q(hero.creditUrl)}`;
-  // Match the existing 4-line hero block; ` *` (literal spaces) so it never
-  // crosses a line boundary and only the hero block is touched.
-  const re = /hero:\n *url:.*\n *alt:.*\n *credit:.*\n *creditUrl:.*/;
-  if (!re.test(raw)) return null;
-  return raw.replace(re, block);
+  const inline =
+    `hero: { url: ${q(hero.url)}, alt: ${q(hero.alt)}, credit: ${q(hero.credit)}, creditUrl: ${q(hero.creditUrl)} }`;
+  // Multi-line block (pipeline/serialize output)
+  const multiline = /hero:\n *url:.*\n *alt:.*\n *credit:.*\n *creditUrl:.*/;
+  if (multiline.test(raw)) return raw.replace(multiline, block);
+  // Inline object (hand-authored seed/editorial posts)
+  const inlineRe = /hero:\s*\{[^}]*\}/;
+  if (inlineRe.test(raw)) return raw.replace(inlineRe, inline);
+  return null;
 }
 
 async function main() {
