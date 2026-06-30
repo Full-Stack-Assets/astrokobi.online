@@ -1,0 +1,3 @@
+# The topic log is append-only and edited by every run; union both sides on
+# merge/rebase instead of conflicting. Driver registered in the generate workflow.
+content/.topic-log.json merge=topiclog

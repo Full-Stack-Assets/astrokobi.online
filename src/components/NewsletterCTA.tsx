@@ -1,0 +1,24 @@
+import { SubscribeForm } from '@/components/SubscribeForm';
+import { siteConfig } from '@/site.config';
+
+/**
+ * A self-contained newsletter call-to-action: heading, one-line value prop, and
+ * the signup form. Used at the end of every article (see blog/[slug]/page.tsx)
+ * and also registered as an MDX component so it can be dropped inline in a post.
+ * Reads branding from siteConfig to stay portable.
+ */
+export function NewsletterCTA({
+  heading = `Get the weekly ${siteConfig.tagline.split('·')[0].trim().toLowerCase()} dispatch`,
+  blurb = 'The week’s highest-signal stories, synthesized. One email, no spam.',
+}: {
+  heading?: string;
+  blurb?: string;
+}) {
+  return (
+    <aside className="my-12 border border-accent/40 bg-accent/[0.04] p-6 sm:p-8">
+      <div className="font-display text-xl font-bold leading-snug text-ink">{heading}</div>
+      <p className="mt-1 mb-4 text-sm text-ink/70">{blurb}</p>
+      <SubscribeForm />
+    </aside>
+  );
+}

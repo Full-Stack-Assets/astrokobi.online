@@ -1,0 +1,31 @@
+name: Weekly Newsletter Digest
+
+on:
+  schedule:
+    # Mondays 14:00 UTC. Skips automatically if the newsletter isn't configured
+    # or no posts landed in the look-back window.
+    - cron: '0 14 * * 1'
+  workflow_dispatch: # manual trigger button in GitHub UI
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Send digest
+        env:
+          NEWSLETTER_PROVIDER: ${{ secrets.NEWSLETTER_PROVIDER }}
+          BUTTONDOWN_API_KEY: ${{ secrets.BUTTONDOWN_API_KEY }}
+          NEWSLETTER_WINDOW_DAYS: ${{ secrets.NEWSLETTER_WINDOW_DAYS }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+        run: npx tsx scripts/newsletter-digest.ts

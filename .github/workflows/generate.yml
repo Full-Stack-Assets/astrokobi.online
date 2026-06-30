@@ -1,0 +1,96 @@
+name: Hourly Post Generation
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: hourly-post-generation
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Verify Gemini secret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "GEMINI_API_KEY is not set. Add it in Settings → Secrets and variables → Actions." >&2
+            exit 1
+          fi
+
+      - name: Run pipeline with Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
+        run: npx tsx scripts/run-local.ts
+
+      - name: Commit and push
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          PRODUCTION_BRANCH: main
+        run: |
+          git config user.name "trendblog-bot"
+          git config user.email "bot@trendblog.dev"
+
+          git config merge.topiclog.name "union topic log entries"
+          git config merge.topiclog.driver "node scripts/merge-topic-log.mjs %O %A %B"
+
+          git add content/
+          if git diff --cached --quiet; then
+            echo "No new post generated — nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "post: $(date -u +%Y-%m-%dT%H:00Z) hourly dispatch"
+
+          branch="${GITHUB_REF_NAME:-main}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${branch}"; then
+              echo "Pushed on attempt ${attempt}."
+              if [ -n "${VERCEL_DEPLOY_HOOK_URL}" ] && [ "${branch}" = "${PRODUCTION_BRANCH}" ]; then
+                echo "Triggering Vercel deploy hook…"
+                if curl -fsS -m 30 --retry 3 -X POST "${VERCEL_DEPLOY_HOOK_URL}" >/dev/null; then
+                  echo "Vercel redeploy triggered."
+                else
+                  echo "Vercel deploy hook call failed (non-fatal)." >&2
+                fi
+              fi
+              exit 0
+            fi
+            echo "Push rejected (attempt ${attempt}); rebasing onto origin/${branch} and retrying..."
+            git fetch origin "${branch}"
+            if ! git rebase "origin/${branch}"; then
+              echo "Rebase did not complete cleanly; aborting this attempt." >&2
+              git rebase --abort || true
+            fi
+          done
+
+          echo "Failed to push after multiple attempts." >&2
+          exit 1

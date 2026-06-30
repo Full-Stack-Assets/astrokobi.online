@@ -1,0 +1,43 @@
+{
+  "name": "astrokobi-network",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tinacms dev -c \"next dev\"",
+    "build": "bash scripts/build.sh",
+    "start": "next start",
+    "lint": "next lint",
+    "generate": "tsx scripts/run-local.ts",
+    "seed": "tsx scripts/seed.ts",
+    "digest": "tsx scripts/newsletter-digest.ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.2",
+    "@tinacms/cli": "^2.1.8",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "cheerio": "^1.0.0",
+    "gray-matter": "^4.0.3",
+    "next": "^15.0.3",
+    "next-mdx-remote": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "reading-time": "^1.5.0",
+    "rss-parser": "^3.13.0",
+    "tinacms": "^3.1.1",
+    "youtubei.js": "^13.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.15.0",
+    "eslint-config-next": "^15.0.3",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

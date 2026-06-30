@@ -1,0 +1,65 @@
+name: Re-image Posts
+
+# Manually-triggered backfill that refreshes hero images for existing posts
+# using the pipeline's pickImage() (content-accurate query + provider chain).
+# Pexels is used when PEXELS_API_KEY is set; otherwise the keyless Openverse.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "all = re-image every post, missing = only posts with no hero"
+        type: choice
+        default: all
+        options:
+          - all
+          - missing
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reimage-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reimage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Re-image posts
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "missing" ]; then
+            npx tsx scripts/reimage.ts --missing
+          else
+            npx tsx scripts/reimage.ts
+          fi
+      - name: Commit and push
+        run: |
+          git config user.name "trendblog-bot"
+          git config user.email "bot@trendblog.dev"
+          git add content/posts
+          if git diff --cached --quiet; then
+            echo "No image changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: refresh hero images for accuracy"
+          branch="${GITHUB_REF_NAME:-main}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${branch}"; then
+              echo "Pushed on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Push rejected (attempt ${attempt}); rebasing and retrying..."
+            git fetch origin "${branch}"
+            git rebase "origin/${branch}" || git rebase --abort || true
+          done
+          echo "Failed to push after multiple attempts." >&2
+          exit 1

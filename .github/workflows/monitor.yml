@@ -1,0 +1,102 @@
+name: Hourly Failure Alert
+
+# Durable, session-independent monitor for the "Hourly Post Generation" workflow.
+# When a *main-branch* hourly run finishes with a failure, this opens (or reopens
+# and comments on) a single tracking issue, so repeated failures dedupe into one
+# perpetual thread instead of spamming — GitHub then emails the issue's
+# subscribers. When a later main-branch run succeeds, the open tracking issue is
+# closed with a recovery note. Only main-branch runs are considered, so manual
+# workflow_dispatch test runs on feature branches can't open or close it.
+# workflow_run workflows only dispatch from the default branch, so this must live
+# on main to fire.
+on:
+  workflow_run:
+    workflows: ['Hourly Post Generation']
+    types: [completed]
+
+permissions:
+  issues: write
+
+# One alert action at a time, so two near-simultaneous completions can't both
+# create a duplicate tracking issue.
+concurrency:
+  group: hourly-failure-alert
+
+jobs:
+  alert:
+    # Real failures on the scheduled (main) workflow only — ignore 'cancelled'
+    # (concurrency-superseded ticks) and any non-main dispatch.
+    if: ${{ (github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out') && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or reopen the tracking issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const LABEL = 'hourly-failure';
+            const TITLE = 'Hourly Post Generation is failing';
+            const body = [
+              `The **Hourly Post Generation** workflow finished with \`${run.conclusion}\`.`,
+              '',
+              `- Run: ${run.html_url}`,
+              `- Commit: \`${(run.head_sha || '').slice(0, 7)}\` on \`${run.head_branch}\``,
+              `- Finished: ${run.updated_at}`,
+              '',
+              '_Posted automatically. Closes when an hourly run next succeeds; reopens on the next failure._',
+            ].join('\n');
+
+            // Ensure the dedupe label exists — create it only on a genuine 404,
+            // and rethrow anything else so a real API error isn't masked.
+            try {
+              await github.rest.issues.getLabel({ ...context.repo, name: LABEL });
+            } catch (err) {
+              if (err.status !== 404) throw err;
+              await github.rest.issues.createLabel({
+                ...context.repo, name: LABEL, color: 'B60205',
+                description: 'Automated: an hourly generation run failed',
+              });
+            }
+
+            // Single perpetual tracking thread: reuse the most recent labeled
+            // ISSUE (never a PR — listForRepo returns both), reopening it if it
+            // was closed; otherwise open a fresh one.
+            const found = await github.rest.issues.listForRepo({
+              ...context.repo, state: 'all', labels: LABEL,
+              sort: 'created', direction: 'desc', per_page: 30,
+            });
+            const tracking = found.data.find((i) => !i.pull_request);
+            if (tracking) {
+              if (tracking.state === 'closed') {
+                await github.rest.issues.update({ ...context.repo, issue_number: tracking.number, state: 'open' });
+              }
+              await github.rest.issues.createComment({ ...context.repo, issue_number: tracking.number, body });
+              core.info(`Updated tracking issue #${tracking.number}`);
+            } else {
+              const created = await github.rest.issues.create({ ...context.repo, title: TITLE, labels: [LABEL], body });
+              core.info(`Opened tracking issue #${created.data.number}`);
+            }
+
+  resolve:
+    # On a green main-branch run, close any open tracking issue (never a PR).
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close the tracking issue if the job recovered
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const LABEL = 'hourly-failure';
+            const open = await github.rest.issues.listForRepo({
+              ...context.repo, state: 'open', labels: LABEL, per_page: 100,
+            });
+            for (const issue of open.data) {
+              if (issue.pull_request) continue; // listForRepo returns PRs too — never touch them
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: issue.number,
+                body: `Recovered — an hourly run succeeded (${run.html_url}). Closing.`,
+              });
+              await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed' });
+              core.info(`Closed tracking issue #${issue.number}`);
+            }
