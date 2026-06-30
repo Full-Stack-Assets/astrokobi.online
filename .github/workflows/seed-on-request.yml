@@ -1,0 +1,106 @@
+name: Seed on Request
+
+# Push-triggered alternative to workflow_dispatch (for automation agents that
+# cannot call the dispatch API). Update .github/seed-request.json on main.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/seed-request.json']
+
+concurrency:
+  group: seed-backfill
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Read request
+        id: req
+        run: |
+          limit=$(jq -r '.limit // 10' .github/seed-request.json)
+          interval=$(jq -r '.interval_hours // 24' .github/seed-request.json)
+          purge=$(jq -r '.purge // false' .github/seed-request.json)
+          echo "limit=${limit}" >> "$GITHUB_OUTPUT"
+          echo "interval_hours=${interval}" >> "$GITHUB_OUTPUT"
+          echo "purge=${purge}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Gemini secret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "GEMINI_API_KEY is not set." >&2
+            exit 1
+          fi
+
+      - name: Purge inherited posts (optional)
+        if: steps.req.outputs.purge == 'true'
+        run: |
+          find content/editorial -name '*.mdx' ! -name 'online-the-model-after-the-interface.mdx' ! -name 'online-ai-needs-a-night-sky.mdx' -delete
+          echo '{ "topics": [] }' > content/.topic-log.json
+
+      - name: Run seed
+        env:
+          NEXT_PUBLIC_SITE_VARIANT: astrokobi-online
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          LIMIT: ${{ steps.req.outputs.limit }}
+          INTERVAL_HOURS: ${{ steps.req.outputs.interval_hours }}
+          PURGED: ${{ steps.req.outputs.purge }}
+        run: |
+          npx tsx scripts/seed.ts --limit="$LIMIT" --interval-hours="$INTERVAL_HOURS" --delay=2000
+          if [ "$PURGED" = "true" ]; then
+            new_posts=$(git status --porcelain -- content/editorial \
+              | grep -E '\.mdx$' | grep -vE '^.D' | wc -l | tr -d ' ' || true)
+            if [ "${new_posts:-0}" -eq 0 ]; then
+              echo "::error::purge produced 0 new posts" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Commit and push
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          PRODUCTION_BRANCH: main
+        run: |
+          git config user.name "astrokobi-bot"
+          git config user.email "bot@astrokobi.com"
+          git config merge.topiclog.name "union topic log entries"
+          git config merge.topiclog.driver "node scripts/merge-topic-log.mjs %O %A %B"
+          git add content/
+          if git diff --cached --quiet; then
+            echo "No new posts generated — nothing to commit."
+            exit 0
+          fi
+          count=$(git diff --cached --name-only --diff-filter=A -- 'content/editorial/*.mdx' | wc -l | tr -d ' ')
+          git commit -m "seed: backfill ${count} evergreen post(s)"
+          branch="${GITHUB_REF_NAME:-main}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${branch}"; then
+              if [ -n "${VERCEL_DEPLOY_HOOK_URL}" ] && [ "${branch}" = "${PRODUCTION_BRANCH}" ]; then
+                curl -fsS -m 30 --retry 3 -X POST "${VERCEL_DEPLOY_HOOK_URL}" >/dev/null || true
+              fi
+              exit 0
+            fi
+            git fetch origin "${branch}"
+            git rebase "origin/${branch}" || git rebase --abort || true
+          done
+          exit 1
