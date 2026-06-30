@@ -44,6 +44,19 @@ jobs:
 
       - run: npm ci
 
+      - name: Verify required secrets
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+        run: |
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "GEMINI_API_KEY is not set. Add it in Settings → Secrets and variables → Actions." >&2
+            exit 1
+          fi
+          if [ -z "${BRAVE_API_KEY}" ]; then
+            echo "BRAVE_API_KEY is not set — seed will fall back to Wikipedia for research."
+          fi
+
       # Opt-in only. Defaults to false, so a normal run never deletes anything.
       - name: Purge inherited posts (optional)
         if: ${{ inputs.purge }}

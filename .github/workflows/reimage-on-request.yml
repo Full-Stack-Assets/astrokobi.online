@@ -1,0 +1,63 @@
+name: Re-image on Request
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/reimage-request.json']
+
+concurrency:
+  group: reimage-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  reimage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Read request
+        id: req
+        run: echo "mode=$(jq -r '.mode // "all"' .github/reimage-request.json)" >> "$GITHUB_OUTPUT"
+      - name: Re-image posts
+        env:
+          NEXT_PUBLIC_SITE_VARIANT: astrokobi-online
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          if [ "${{ steps.req.outputs.mode }}" = "missing" ]; then
+            npx tsx scripts/reimage.ts --missing
+          else
+            npx tsx scripts/reimage.ts
+          fi
+      - name: Commit and push
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          PRODUCTION_BRANCH: main
+        run: |
+          git config user.name "astrokobi-bot"
+          git config user.email "bot@astrokobi.com"
+          git add content/
+          if git diff --cached --quiet; then
+            echo "No image changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: refresh hero images for accuracy"
+          branch="${GITHUB_REF_NAME:-main}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${branch}"; then
+              if [ -n "${VERCEL_DEPLOY_HOOK_URL}" ] && [ "${branch}" = "${PRODUCTION_BRANCH}" ]; then
+                curl -fsS -m 30 --retry 3 -X POST "${VERCEL_DEPLOY_HOOK_URL}" >/dev/null || true
+              fi
+              exit 0
+            fi
+            git fetch origin "${branch}"
+            git rebase "origin/${branch}" || git rebase --abort || true
+          done
+          exit 1

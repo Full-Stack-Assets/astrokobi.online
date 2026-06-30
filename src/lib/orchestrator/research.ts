@@ -82,6 +82,55 @@ function extractVideoId(url: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** Keyless fallback for evergreen seed topics when Brave is unset or scraping fails. */
+async function wikipediaArticles(
+  query: string
+): Promise<Array<{ url: string; title: string; content: string }>> {
+  try {
+    const search = new URL('https://en.wikipedia.org/w/api.php');
+    search.searchParams.set('action', 'query');
+    search.searchParams.set('list', 'search');
+    search.searchParams.set('srsearch', query);
+    search.searchParams.set('srlimit', '2');
+    search.searchParams.set('format', 'json');
+    search.searchParams.set('origin', '*');
+
+    const searchRes = await fetch(search);
+    if (!searchRes.ok) return [];
+    const searchJson = (await searchRes.json()) as {
+      query?: { search?: Array<{ title: string }> };
+    };
+    const titles = searchJson.query?.search?.map((r) => r.title) ?? [];
+    if (titles.length === 0) return [];
+
+    const extract = new URL('https://en.wikipedia.org/w/api.php');
+    extract.searchParams.set('action', 'query');
+    extract.searchParams.set('prop', 'extracts');
+    extract.searchParams.set('explaintext', '1');
+    extract.searchParams.set('exchars', '6000');
+    extract.searchParams.set('titles', titles.join('|'));
+    extract.searchParams.set('format', 'json');
+    extract.searchParams.set('origin', '*');
+
+    const extractRes = await fetch(extract);
+    if (!extractRes.ok) return [];
+    const extractJson = (await extractRes.json()) as {
+      query?: { pages?: Record<string, { title?: string; extract?: string }> };
+    };
+    const pages = extractJson.query?.pages ?? {};
+
+    return Object.values(pages)
+      .filter((p) => p.extract && p.extract.length > 200)
+      .map((p) => ({
+        url: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title ?? '')}`,
+        title: p.title ?? query,
+        content: p.extract!.slice(0, 6000),
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function research(
   winner: ScoredItem,
   allItems: RawItem[]
@@ -117,9 +166,15 @@ export async function research(
   ).filter((a): a is NonNullable<typeof a> => a !== null);
 
   // If winner itself is non-YouTube, also try to scrape it
-  if (winner.source !== 'youtube') {
+  if (winner.source !== 'youtube' && winner.url) {
     const w = await scrapeArticle(winner.url);
     if (w) articles.unshift({ url: winner.url, title: w.title || winner.title, content: w.content });
+  }
+
+  // Evergreen seed topics often have no URL; Wikipedia is a reliable keyless fallback.
+  if (articles.length === 0) {
+    const wiki = await wikipediaArticles(query);
+    articles.push(...wiki);
   }
 
   // Pull transcripts from any related YouTube items (and the winner if it's YT)
