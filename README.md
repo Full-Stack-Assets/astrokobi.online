@@ -72,7 +72,7 @@ cp .env.example .env.local
 
 Fill them into `.env.local` along with `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_BRANCH`. Most keys are optional — any unset source is simply skipped. The **LLM key is the only hard requirement**, and its env var name must match `llm.apiKeyEnv` in `src/site.config.ts` (`GEMINI_API_KEY` by default; swap to Groq/OpenRouter via the commented examples in that file).
 
-> **⚠️ Security note:** Never commit `.env.local` or any file containing real API keys. `.env.local` is already in `.gitignore`. Use `.env.example` as a template with placeholder values only. See [`SECURITY_REMEDIATION.md`](SECURITY_REMEDIATION.md).
+
 
 ### 4. Test locally
 
