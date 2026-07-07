@@ -29,16 +29,34 @@ export function serialize(post: GeneratedPost, date: Date = new Date()): string 
 }
 
 /**
- * Make the LLM-written MDX body safe to prerender. The model occasionally emits
- * unescaped double quotes inside a <Question q="..."> attribute (e.g. q="the
- * "limited" plan"), which breaks MDX parsing and fails the whole build. Replace
- * the inner double quotes with single quotes so the attribute stays well-formed.
+ * Make the LLM-written MDX body safe to prerender. Two known model habits break
+ * MDX parsing and would fail the whole site build:
+ *
+ * 1. Unescaped double quotes inside a <Question q="..."> attribute (e.g. q="the
+ *    "limited" plan"). Replace the inner double quotes with single quotes so
+ *    the attribute stays well-formed.
+ * 2. A component opened on its own line but closed inline at the end of a
+ *    paragraph:
+ *        <Callout type="takeaway">
+ *        Some paragraph text.</Callout>
+ *    In MDX a tag alone on its line opens a *flow* element whose closing tag
+ *    must also sit at block level — glued to the paragraph it's a parse error
+ *    ("Expected the closing tag … after the end of paragraph"). Move such a
+ *    closing tag onto its own line. Single-line elements (open + close on one
+ *    line) are valid and left untouched.
  */
 export function sanitizeBody(body: string): string {
-  return body.replace(
+  const quotesFixed = body.replace(
     /(<Question\s+q=")([^\n]*?)(">)/g,
     (_match, open: string, question: string, close: string) =>
       `${open}${question.replace(/"/g, "'")}${close}`
+  );
+
+  return quotesFixed.replace(
+    /^(.*\S)(<\/(Callout|Question|Pros|Cons|ProsCons|FAQ|GearBox|GearPick)>)[ \t]*$/gm,
+    (match, before: string, closing: string, tag: string) =>
+      // Leave valid single-line elements (opening tag on the same line) alone.
+      new RegExp(`<${tag}[\\s>]`).test(before) ? match : `${before}\n${closing}`
   );
 }
 

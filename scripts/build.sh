@@ -15,8 +15,13 @@ else
   npx tinacms build
 fi
 
-# Run Next.js build
+# Run Next.js build — and propagate its exit code. Without this the script
+# always exited 0 and printed success, letting a failed `next build` (e.g. a
+# post with malformed MDX aborting prerender) masquerade as a green build.
 echo "🔨 Building Next.js app..."
-npx next build
+if ! npx next build; then
+  echo "❌ next build failed"
+  exit 1
+fi
 
 echo "✅ Build completed successfully!"
