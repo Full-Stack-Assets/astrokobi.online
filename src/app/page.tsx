@@ -2,8 +2,15 @@ import Link from 'next/link';
 import { listPosts } from '@/lib/posts';
 import { SignalVisual } from '@/components/SignalVisual';
 import { siteConfig } from '@/site.config';
+import { AdSlot } from '@/components/AdSlot';
+import { ADSENSE_CLIENT, ADSENSE_SLOT_LISTING } from '@/lib/ads';
 
 export const revalidate = 300;
+
+// The listing ad renders as one grid cell among the post cards; the whole cell
+// (border included) is skipped unless AdSense + the listing unit are configured.
+const LISTING_AD_ACTIVE = Boolean(ADSENSE_CLIENT && ADSENSE_SLOT_LISTING?.trim());
+const LISTING_AD_AFTER = 5; // cards shown before the ad cell
 
 export default async function HomePage() {
   const posts = await listPosts();
@@ -19,7 +26,11 @@ export default async function HomePage() {
             <section className="mt-24">
               <SectionRule label="The field notes" />
               <div className="mt-7 grid border-l border-t border-white/15 sm:grid-cols-2 lg:grid-cols-3">
-                {rest.map((post, index) => <PostCard key={post.slug} post={post} index={index + 1} />)}
+                {rest.flatMap((post, index) => {
+                  const cells = [<PostCard key={post.slug} post={post} index={index + 1} />];
+                  if (LISTING_AD_ACTIVE && index + 1 === LISTING_AD_AFTER) cells.push(<AdCard key="listing-ad" />);
+                  return cells;
+                })}
               </div>
             </section>
           )}
@@ -109,6 +120,16 @@ function PostCard({ post, index }: { post: ListedPost; index: number }) {
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/** A grid cell holding the listing ad unit, styled to sit among the post cards. */
+function AdCard() {
+  return (
+    <div className="flex flex-col border-b border-r border-white/15 p-5 sm:p-6">
+      <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">Sponsored</div>
+      <AdSlot slot={ADSENSE_SLOT_LISTING} format="auto" className="min-h-[250px] flex-1" />
+    </div>
+  );
 }
 
 function EmptyState() {

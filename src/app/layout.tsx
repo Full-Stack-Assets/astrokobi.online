@@ -42,7 +42,9 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
   },
   // Static AdSense site-verification tag in <head> — crawlable without JS.
-  other: { 'google-adsense-account': ADSENSE_CLIENT },
+  // Only emitted when a publisher id is configured (an empty content="" meta
+  // is useless and looks broken to validators).
+  ...(ADSENSE_CLIENT ? { other: { 'google-adsense-account': ADSENSE_CLIENT } } : {}),
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

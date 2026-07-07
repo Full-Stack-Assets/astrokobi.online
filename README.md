@@ -146,6 +146,44 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://your-domain/api/cron/genera
 
 ---
 
+## Monetization (optional)
+
+All monetization is config-gated: leave a value blank and its surface renders
+nothing. No IDs ship in the repo — supply your own via env vars.
+
+### Google AdSense
+
+1. Get approved at https://adsense.google.com and copy your publisher id
+   (`ca-pub-…`) into `NEXT_PUBLIC_ADSENSE_CLIENT` (or `adsenseClient` in
+   `src/site.config.ts`). This loads the AdSense script, emits the
+   `google-adsense-account` meta, and serves `/ads.txt` (the route 404s while
+   unconfigured).
+2. Create ad units under AdSense → Ads → By ad unit and set their slot ids:
+   `NEXT_PUBLIC_ADSENSE_SLOT_IN_ARTICLE` (after the post body),
+   `NEXT_PUBLIC_ADSENSE_SLOT_MID_ARTICLE` (injected mid-post at the
+   "How to think about it" heading), `NEXT_PUBLIC_ADSENSE_SLOT_FOOTER`
+   (site-wide footer), and `NEXT_PUBLIC_ADSENSE_SLOT_LISTING` (home grid +
+   category/tag pages). Every unit is lazy-loaded (the ad request fires only
+   as the slot nears the viewport). Auto Ads also works from the script alone
+   if enabled in your AdSense dashboard.
+
+### Amazon Associates (affiliate)
+
+Set `NEXT_PUBLIC_AMAZON_AFFILIATE_TAG` (e.g. `yoursite-20`) — or
+`affiliate.amazonTag` in `src/site.config.ts` — and the `<GearBox>`/`<GearPick>`
+MDX components decorate Amazon links with your tag. Untagged, they render as
+plain outbound links. All affiliate links carry `rel="sponsored nofollow"` and
+an FTC/Amazon-compliant disclosure (per-box, plus site-wide in the footer while
+`affiliate.disclose` is true).
+
+### Newsletter
+
+Set `BUTTONDOWN_API_KEY` to activate the subscribe forms (footer + article
+CTAs) and the weekly digest workflow. Unset, the API returns a friendly
+"not live yet" and nothing breaks.
+
+---
+
 ## TinaCMS editor (optional)
 
 The schema in `tina/config.ts` matches the frontmatter the pipeline emits (and its category dropdown is derived from `src/site.config.ts`, so the two never drift). Start the editor with:

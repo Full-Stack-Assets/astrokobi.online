@@ -10,3 +10,8 @@ export const ADSENSE_CLIENT =
 
 export const ADSENSE_SLOT_IN_ARTICLE = process.env.NEXT_PUBLIC_ADSENSE_SLOT_IN_ARTICLE;
 export const ADSENSE_SLOT_FOOTER = process.env.NEXT_PUBLIC_ADSENSE_SLOT_FOOTER;
+// Mid-article unit, injected between body sections on the post page (only when
+// the post carries the contract's "## How to think about it" heading to split at).
+export const ADSENSE_SLOT_MID_ARTICLE = process.env.NEXT_PUBLIC_ADSENSE_SLOT_MID_ARTICLE;
+// Listing unit, rendered as a card in the home grid and after taxonomy listings.
+export const ADSENSE_SLOT_LISTING = process.env.NEXT_PUBLIC_ADSENSE_SLOT_LISTING;

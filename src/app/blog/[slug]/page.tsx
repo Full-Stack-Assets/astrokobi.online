@@ -7,10 +7,24 @@ import { mdxComponents } from '@/components/mdx';
 import { articleJsonLd, faqJsonLd, breadcrumbJsonLd, SITE_URL, SITE_NAME } from '@/lib/structured-data';
 import { AdSlot } from '@/components/AdSlot';
 import { NewsletterCTA } from '@/components/NewsletterCTA';
-import { ADSENSE_SLOT_IN_ARTICLE } from '@/lib/ads';
+import { ADSENSE_CLIENT, ADSENSE_SLOT_IN_ARTICLE, ADSENSE_SLOT_MID_ARTICLE } from '@/lib/ads';
 import { SignalVisual } from '@/components/SignalVisual';
 
 export const revalidate = 300;
+
+/**
+ * Split an MDX body at the contract's top-level "## How to think about it"
+ * heading so a mid-article ad can sit between the two halves. Splitting at a
+ * top-level `##` line is safe — per the MDX contract every component opens and
+ * closes within its own section, so each half stays valid MDX. Hand-written
+ * editorial posts without that heading (or with it in the first ~40% of the
+ * body, where an ad would crowd the takeaway) are returned unsplit.
+ */
+function splitForMidArticleAd(body: string): [string, string | null] {
+  const m = /^##\s+How to think about it\s*$/m.exec(body);
+  if (!m || m.index < body.length * 0.4) return [body, null];
+  return [body.slice(0, m.index), body.slice(m.index)];
+}
 
 export async function generateStaticParams() {
   // Only pre-render published posts; a future-dated (scheduled) post is rendered
@@ -111,10 +125,33 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         <SignalVisual category={frontmatter.category} index={frontmatter.title.length % 7} compact />
       </div>
 
-      {/* Body */}
-      <div className="prose-editorial">
-        <MDXRemote source={body} components={mdxComponents} />
-      </div>
+      {/* Body — with an optional mid-article ad between the two halves. The
+          body is only split (and double-compiled) when the mid-article unit is
+          actually configured; otherwise it renders in one pass as before. */}
+      {(() => {
+        const midAdActive = Boolean(ADSENSE_CLIENT && ADSENSE_SLOT_MID_ARTICLE?.trim());
+        const [bodyTop, bodyRest] = midAdActive ? splitForMidArticleAd(body) : [body, null];
+        return (
+          <>
+            <div className="prose-editorial">
+              <MDXRemote source={bodyTop} components={mdxComponents} />
+            </div>
+            {bodyRest && (
+              <>
+                <AdSlot
+                  slot={ADSENSE_SLOT_MID_ARTICLE}
+                  format="fluid"
+                  layout="in-article"
+                  className="my-10 block text-center"
+                />
+                <div className="prose-editorial">
+                  <MDXRemote source={bodyRest} components={mdxComponents} />
+                </div>
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {/* In-article ad (renders only when AdSense is configured) */}
       <AdSlot
