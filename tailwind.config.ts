@@ -13,7 +13,7 @@ const config: Config = {
         mono: ['var(--font-mono)', 'monospace'],
       },
       colors: {
-        ink: '#07090e',
+        ink: '#05070c',
         paper: 'var(--color-paper)',
         accent: 'var(--color-accent)',
         muted: 'var(--color-muted)',

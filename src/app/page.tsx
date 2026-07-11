@@ -18,7 +18,7 @@ export default async function HomePage() {
           {rest.length > 0 && (
             <section className="mt-24">
               <SectionRule label="The field notes" />
-              <div className="mt-7 grid border-l border-t border-white/15 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {rest.map((post, index) => <PostCard key={post.slug} post={post} index={index + 1} />)}
               </div>
             </section>
@@ -66,8 +66,8 @@ type ListedPost = Awaited<ReturnType<typeof listPosts>>[number];
 function LeadStory({ post }: { post: ListedPost }) {
   const { slug, frontmatter, readingTimeMin } = post;
   return (
-    <article className="grid overflow-hidden border border-white/15 lg:grid-cols-[1.18fr_0.82fr]">
-      <Link href={`/blog/${slug}`} className="min-h-[420px] overflow-hidden border-b border-white/15 lg:border-b-0 lg:border-r">
+    <article className="glass-card grid overflow-hidden lg:grid-cols-[1.18fr_0.82fr]">
+      <Link href={`/blog/${slug}`} className="min-h-[420px] overflow-hidden border-b border-white/10 lg:border-b-0 lg:border-r">
         <SignalVisual category={frontmatter.category} />
       </Link>
       <div className="flex flex-col justify-center p-7 sm:p-12">
@@ -89,7 +89,7 @@ function LeadStory({ post }: { post: ListedPost }) {
 function PostCard({ post, index }: { post: ListedPost; index: number }) {
   const { slug, frontmatter, readingTimeMin } = post;
   return (
-    <article className="group flex flex-col border-b border-r border-white/15 p-5 transition-colors hover:bg-white/[0.025] sm:p-6">
+    <article className="glass-card group flex flex-col p-5 sm:p-6">
       <Link href={`/blog/${slug}`} className="mb-7 block aspect-[4/3] overflow-hidden">
         <SignalVisual category={frontmatter.category} index={index} compact />
       </Link>
@@ -100,7 +100,7 @@ function PostCard({ post, index }: { post: ListedPost; index: number }) {
         <h3 className="font-display text-2xl font-medium leading-[1.05] tracking-[-0.025em] transition-colors group-hover:text-accent">{frontmatter.title}</h3>
       </Link>
       <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-muted">{frontmatter.description}</p>
-      <div className="mt-7 border-t border-white/10 pt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+      <div className="mt-7 border-t border-white/10 pt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-muted transition-colors group-hover:border-accent/30">
         {formatDate(frontmatter.date)} · {readingTimeMin} min
       </div>
     </article>
