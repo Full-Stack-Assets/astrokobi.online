@@ -31,7 +31,7 @@ export default async function HomePage() {
 
 function Masthead({ postCount }: { postCount: number }) {
   return (
-    <section className="mb-14 grid min-h-[46vh] items-end gap-10 border-b border-white/15 pb-12 lg:grid-cols-[1fr_auto]">
+    <section className="hero-horizon mb-14 grid min-h-[46vh] items-end gap-10 border-b border-white/15 pb-12 lg:grid-cols-[1fr_auto]">
       <div className="max-w-5xl">
         <div className="eyebrow">Independent journal · {siteConfig.edition}</div>
         <h1 className="mt-6 font-display text-[clamp(4rem,11vw,9.5rem)] font-semibold leading-[0.78] tracking-[-0.075em]">

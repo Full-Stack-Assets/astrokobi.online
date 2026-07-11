@@ -43,8 +43,10 @@ Actions**:
 
 - **The LLM key** — required. Its name must match `llm.apiKeyEnv` in
   `site.config.ts` — **`GROQ_API_KEY` by default** (`OPENROUTER_API_KEY`
-  if you switch providers). Groq's free tier
-  (~1,500 requests/day) comfortably covers several sites on one key.
+  if you switch providers). Groq's free-tier rate limits vary by model and
+  change over time — see the limits page in the Groq console
+  (https://console.groq.com/settings/limits) for current numbers; an hourly
+  cadence fits comfortably within them.
 - `BRAVE_API_KEY`, `PEXELS_API_KEY`, `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`
   — optional; any unset source is skipped (Brave/Reddit can be dropped entirely,
   and `imageProvider: 'openverse'` needs no image key).

@@ -47,7 +47,7 @@ export default async function StatsPage() {
       {/* Header */}
       <div className="mb-12 border-b border-white/15 pb-6">
         <div className="text-xs uppercase tracking-[0.3em] text-muted">Meta</div>
-        <h1 className="mt-2 font-display text-5xl font-black">Stats</h1>
+        <h1 className="mt-2 font-display text-5xl font-black"><span className="gradient-text">Stats</span></h1>
         <p className="mt-2 text-muted">
           Pipeline telemetry and content breakdown.
         </p>

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import Link from 'next/link';
 import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
@@ -11,6 +12,25 @@ import { ADSENSE_CLIENT, ADSENSE_SLOT_FOOTER } from '@/lib/ads';
 import { siteConfig } from '@/site.config';
 import { shouldDisclose } from '@/lib/affiliate';
 import './globals.css';
+
+const fontDisplay = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
+const fontBody = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-body',
+  display: 'swap',
+});
+const fontMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 /** Short categories (AI, DIY) read better uppercased; longer ones title-cased. */
 function navLabel(c: string): string {
@@ -47,7 +67,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-site={siteConfig.key}>
+    <html
+      lang="en"
+      data-site={siteConfig.key}
+      className={`${fontDisplay.variable} ${fontBody.variable} ${fontMono.variable}`}
+    >
       <body className="relative overflow-x-hidden">
         {ADSENSE_CLIENT && (
           <Script
@@ -61,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()).replace(/</g, '\\u003c') }}
         />
+        <div aria-hidden className="scan-shimmer" />
         <Header />
         <main className="relative z-10">{children}</main>
         <Footer />
