@@ -33,13 +33,15 @@ jobs:
 
       - run: npm ci
 
+      - name: Verify backfill script exists
+        run: test -f scripts/backfill-articles.ts || { echo "scripts/backfill-articles.ts is missing; the Run backfill step would fail with a module-resolution error." >&2; exit 1; }
+
       - name: Run backfill
         env:
           # Must match the Vercel project's NEXT_PUBLIC_SITE_VARIANT so new
           # posts are tagged for the correct domain (astrokobi.online).
           NEXT_PUBLIC_SITE_VARIANT: astrokobi-online
           # LLM key — name must match `llm.apiKeyEnv` in src/site.config.ts.
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Required: these evergreen topics have no source URL, so research

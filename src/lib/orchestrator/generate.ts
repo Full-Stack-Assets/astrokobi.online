@@ -11,18 +11,27 @@ type LlmProvider = { endpoint: string; model: string; apiKeyEnv: string };
 const PRIMARY_LLM: LlmProvider = siteConfig.llm;
 const FALLBACK_LLM: LlmProvider | undefined = (siteConfig as { llmFallback?: LlmProvider }).llmFallback;
 
-/** A transient provider error worth failing over to the backup LLM for. */
+/** A transient provider error worth failing over to the backup LLM for.
+ *  Includes 413 "request too large": Groq counts input + requested output
+ *  against the free-tier TPM cap at admission, so an over-budget request is
+ *  rejected outright — retrying the same model can't help, but the fallback
+ *  model (with a higher TPM cap) can. */
 function isAvailabilityError(msg: string): boolean {
-  return /API error (?:429|5\d\d)\b/.test(msg) || /overloaded|unavailable|high demand/i.test(msg);
+  return (
+    /API error (?:413|429|5\d\d)\b/.test(msg) ||
+    /overloaded|unavailable|high demand|too large|Request too large|413/i.test(msg)
+  );
 }
 
 /** How many times to ask the model before giving up on a structurally valid post. */
 const MAX_GENERATION_ATTEMPTS = 5;
 
 /** HTTP statuses worth retrying — rate limits and transient upstream outages
- *  (Gemini's free tier returns 503 "UNAVAILABLE" under load). Client errors like
- *  400/401/403 are deliberately absent: retrying them just fails identically. */
-const RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+ *  (e.g. a provider free tier returning 503 "UNAVAILABLE" under load), plus 413
+ *  "request too large" so an over-TPM-budget request reaches the failover path
+ *  instead of aborting the run. Client errors like 400/401/403 are deliberately
+ *  absent: retrying them just fails identically. */
+const RETRYABLE_STATUS = new Set([408, 409, 413, 425, 429, 500, 502, 503, 504]);
 
 /** Carries the HTTP status of a failed LLM call so the retry loop can tell a
  *  transient outage (back off and retry) from a fatal client error (give up). */
@@ -198,6 +207,18 @@ export async function generate(bundle: ResearchBundle): Promise<GeneratedPost> {
       if (!isTransient(err)) {
         throw new Error(`LLM generation aborted on a non-retryable error: ${lastError}`);
       }
+      // Availability trouble on the primary (429/5xx/overloaded): switch to the
+      // backup provider for the remaining attempts instead of hammering a model
+      // that is telling us it's down.
+      if (!failedOver && FALLBACK_LLM && fallbackKey && isAvailabilityError(lastError)) {
+        failedOver = true;
+        provider = FALLBACK_LLM;
+        providerKey = fallbackKey;
+        console.warn(
+          `[generate] ${PRIMARY_LLM.model} unavailable (${lastError.slice(0, 140)}) — failing over to ${FALLBACK_LLM.model}`
+        );
+        continue;
+      }
       if (attempt < MAX_GENERATION_ATTEMPTS) {
         const wait = backoffMs(attempt);
         console.warn(
@@ -273,7 +294,10 @@ function fetchLlm(provider: LlmProvider, key: string, userPrompt: string): Promi
     body: JSON.stringify({
       model: provider.model,
       temperature: 0.5,
-      max_tokens: 8192,
+      // Groq's free tier admits requests by input + requested output tokens
+      // against an 8K TPM cap (gpt-oss-120b/20b). 3584 leaves ~4K of headroom
+      // for the trimmed research prompt so a single request fits the budget.
+      max_tokens: 3584,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -321,14 +345,14 @@ function buildUserPrompt(bundle: ResearchBundle): string {
     .map(
       (a, i) => `### Source ${i + 1}: ${a.title}
 URL: ${a.url}
-${a.content.slice(0, 4000)}`
+${a.content.slice(0, 2400)}`
     )
     .join('\n\n');
 
   const transcriptBlock = transcripts.length
     ? '\n\n## Video transcripts\n' +
       transcripts
-        .map((t) => `### ${t.title}\n${t.text.slice(0, 3000)}`)
+        .map((t) => `### ${t.title}\n${t.text.slice(0, 1600)}`)
         .join('\n\n')
     : '';
 

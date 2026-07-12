@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import Link from 'next/link';
 import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
@@ -11,6 +12,25 @@ import { ADSENSE_CLIENT, ADSENSE_SLOT_FOOTER } from '@/lib/ads';
 import { siteConfig } from '@/site.config';
 import { shouldDisclose } from '@/lib/affiliate';
 import './globals.css';
+
+const fontDisplay = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
+const fontBody = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-body',
+  display: 'swap',
+});
+const fontMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 /** Short categories (AI, DIY) read better uppercased; longer ones title-cased. */
 function navLabel(c: string): string {
@@ -47,7 +67,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-site={siteConfig.key}>
+    <html
+      lang="en"
+      data-site={siteConfig.key}
+      className={`${fontDisplay.variable} ${fontBody.variable} ${fontMono.variable}`}
+    >
       <body className="relative overflow-x-hidden">
         {ADSENSE_CLIENT && (
           <Script
@@ -61,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()).replace(/</g, '\\u003c') }}
         />
+        <div aria-hidden className="scan-shimmer" />
         <Header />
         <main className="relative z-10">{children}</main>
         <Footer />
@@ -75,8 +100,8 @@ function Header() {
   const words = siteConfig.name.split(' ');
   const last = words.pop();
   return (
-    <header className="relative z-20 border-b border-white/15">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/60 backdrop-blur-md">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
         <Link href="/" className="group">
           <div className="font-display text-xl font-semibold uppercase tracking-[0.12em] leading-none text-paper">{words.join(' ')} <span className="text-accent">{last}</span></div>
         </Link>
@@ -85,7 +110,7 @@ function Header() {
             <Link key={c} href={`/categories/${c}`} className="hidden transition-colors hover:text-accent sm:block">{navLabel(c)}</Link>
           ))}
           <Link href="/about" className="transition-colors hover:text-accent">About</Link>
-          <a href="/feed.xml" className="border border-white/20 px-3 py-2 text-paper transition-colors hover:border-accent hover:text-accent">RSS ↗</a>
+          <a href="/feed.xml" className="border border-white/20 px-3 py-2 text-paper transition-all hover:border-accent hover:text-accent hover:shadow-[0_0_18px_-4px_var(--color-accent)]">RSS ↗</a>
         </nav>
       </div>
     </header>
@@ -128,7 +153,7 @@ function Footer() {
           corrections are welcome.
         </p>
         {shouldDisclose() && (
-          <div className="mt-4 max-w-3xl border-t border-ink/10 pt-4">
+          <div className="mt-4 max-w-3xl border-t border-white/10 pt-4">
             <AffiliateDisclosure scope="site" />
           </div>
         )}
